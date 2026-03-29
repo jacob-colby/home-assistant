@@ -1,2 +1,5 @@
 [credential]
 	helper = store
+[user]
+	name = Jacob Colby
+	email = jacobdcolby@gmail.com
