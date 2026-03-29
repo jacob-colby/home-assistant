@@ -1,0 +1,383 @@
+# ============================================================
+#  Actionable Notifications Package
+#  Smart, context-aware push notifications with action buttons
+#  for the HA Companion app (iOS & Android).
+#
+#  Each notification follows this pattern:
+#    1. Trigger  — sensor/state/time event
+#    2. Condition — only fire when relevant
+#    3. Action   — send rich notification with action buttons
+#    4. Handler  — respond to the tapped action
+#
+#  ENTITIES TO REPLACE (search REPLACE_ME):
+#    notify.mobile_app_your_phone   → your HA companion notify service
+#    notify.mobile_app_partner_phone → partner's notify service
+#    notify.everyone               → notify group (see note below)
+#
+#  TIP: Create a notify group in configuration.yaml:
+#    notify:
+#      - platform: group
+#        name: everyone
+#        services:
+#          - service: mobile_app_your_phone
+#          - service: mobile_app_partner_phone
+# ============================================================
+
+automation:
+
+  # ──────────────────────────────────────────────────────────
+  # 1. DRYER DONE — actionable
+  # ──────────────────────────────────────────────────────────
+  - id: notify_dryer_done
+    alias: "Notify — Dryer Done"
+    description: "Alert when dryer finishes; offer to extend warm cycle"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.dryer_active   # REPLACE_ME
+        to: "off"
+        for: "00:02:00"                         # confirm it's actually done
+    action:
+      - service: notify.everyone                # REPLACE_ME
+        data:
+          title: "🌀 Dryer Done!"
+          message: "Your laundry is ready. Wrinkle prevention mode?"
+          data:
+            tag: dryer_done
+            group: laundry
+            actions:
+              - action: "DRYER_KEEP_WARM"
+                title: "Keep Warm 15 min 🌡️"
+              - action: "DRYER_DISMISS"
+                title: "Got it ✓"
+            # Android: show on lock screen
+            visibility: public
+            # iOS: use critical if needed
+            # push:
+            #   sound:
+            #     name: default
+            #     critical: 1
+
+  - id: notify_dryer_done_keep_warm
+    alias: "Notify — Dryer Keep Warm Action"
+    trigger:
+      - platform: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: DRYER_KEEP_WARM
+    action:
+      # Tumble dryer keep-warm: brief run every 15 min for 1 hour
+      - repeat:
+          count: 4
+          sequence:
+            - service: switch.turn_on
+              target:
+                entity_id: switch.dryer                # REPLACE_ME
+            - delay: "00:14:00"
+            - service: switch.turn_off
+              target:
+                entity_id: switch.dryer                # REPLACE_ME
+            - delay: "00:01:00"
+      - service: notify.everyone                       # REPLACE_ME
+        data:
+          title: "✅ Keep-Warm Done"
+          message: "Dryer keep-warm cycle complete. Time to fold!"
+          data:
+            tag: dryer_done
+
+  # ──────────────────────────────────────────────────────────
+  # 2. WASHER DONE — actionable
+  # ──────────────────────────────────────────────────────────
+  - id: notify_washer_done
+    alias: "Notify — Washer Done"
+    description: "Alert when wash cycle finishes"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.washer_active  # REPLACE_ME
+        to: "off"
+        for: "00:02:00"
+    action:
+      - service: notify.everyone                # REPLACE_ME
+        data:
+          title: "🫧 Wash Done!"
+          message: "Move clothes to the dryer before they sit too long."
+          data:
+            tag: washer_done
+            group: laundry
+            actions:
+              - action: "WASHER_START_DRYER"
+                title: "Start Dryer 🌀"
+              - action: "WASHER_DISMISS"
+                title: "Got it ✓"
+
+  - id: notify_washer_start_dryer
+    alias: "Notify — Start Dryer from Washer Action"
+    trigger:
+      - platform: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: WASHER_START_DRYER
+    action:
+      - service: switch.turn_on
+        target:
+          entity_id: switch.dryer                      # REPLACE_ME
+      - service: notify.everyone                       # REPLACE_ME
+        data:
+          title: "▶️ Dryer Started"
+          message: "Dryer is running. We'll let you know when it's done."
+          data:
+            tag: washer_done
+
+  # ──────────────────────────────────────────────────────────
+  # 3. DOOR LEFT UNLOCKED — actionable
+  # ──────────────────────────────────────────────────────────
+  - id: notify_door_unlocked_long
+    alias: "Notify — Front Door Unlocked Too Long"
+    description: "Alert if front door is unlocked for >10 min while away"
+    trigger:
+      - platform: state
+        entity_id: lock.front_door              # REPLACE_ME
+        to: "unlocked"
+        for: "00:10:00"
+    condition:
+      - condition: template
+        value_template: >
+          {{ is_state('person.you','not_home') and is_state('person.partner','not_home') }}
+    action:
+      - service: notify.everyone                # REPLACE_ME
+        data:
+          title: "🔓 Front Door Unlocked!"
+          message: "The front door has been unlocked for 10+ minutes and nobody is home."
+          data:
+            tag: door_unlocked
+            color: "#ff453a"
+            actions:
+              - action: "LOCK_FRONT_DOOR"
+                title: "Lock Now 🔒"
+              - action: "DOOR_UNLOCK_DISMISS"
+                title: "Ignore"
+
+  - id: notify_lock_front_door_action
+    alias: "Notify — Lock Front Door Action"
+    trigger:
+      - platform: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: LOCK_FRONT_DOOR
+    action:
+      - service: lock.lock
+        target:
+          entity_id: lock.front_door            # REPLACE_ME
+      - service: notify.everyone                # REPLACE_ME
+        data:
+          title: "🔒 Door Locked"
+          message: "Front door has been locked remotely."
+          data:
+            tag: door_unlocked
+
+  # ──────────────────────────────────────────────────────────
+  # 4. WINDOW LEFT OPEN — rain alert
+  # ──────────────────────────────────────────────────────────
+  - id: notify_window_open_rain
+    alias: "Notify — Window Open with Rain Coming"
+    description: "Alert when rain is forecast and a window is open"
+    trigger:
+      - platform: state
+        entity_id: weather.home                 # REPLACE_ME
+        to:
+          - "rainy"
+          - "pouring"
+    condition:
+      - condition: template
+        value_template: >
+          {{ expand('binary_sensor.all_windows')
+             | selectattr('state','eq','on') | list | count > 0 }}
+    action:
+      - service: notify.everyone                # REPLACE_ME
+        data:
+          title: "🌧️ Rain Coming!"
+          message: >
+            Rain is on the way. These windows are open:
+            {% for s in expand('binary_sensor.all_windows')
+               | selectattr('state','eq','on') %}
+              {{ s.name }}{% if not loop.last %}, {% endif %}
+            {% endfor %}
+          data:
+            tag: rain_window
+            color: "#5e9cf8"
+
+  # ──────────────────────────────────────────────────────────
+  # 5. LIGHTS LEFT ON — away
+  # ──────────────────────────────────────────────────────────
+  - id: notify_lights_left_on_away
+    alias: "Notify — Lights Left On While Away"
+    description: "Offer to turn off lights if both people left them on"
+    trigger:
+      - platform: state
+        entity_id:
+          - person.you                          # REPLACE_ME
+          - person.partner                      # REPLACE_ME
+        to: "not_home"
+        for: "00:05:00"
+    condition:
+      - condition: state
+        entity_id: person.you                   # REPLACE_ME
+        state: "not_home"
+      - condition: state
+        entity_id: person.partner              # REPLACE_ME
+        state: "not_home"
+      - condition: template
+        value_template: >
+          {{ expand('light.all_lights')
+             | selectattr('state','eq','on') | list | count > 0 }}
+    action:
+      - service: notify.mobile_app_your_phone  # REPLACE_ME
+        data:
+          title: "💡 Lights Left On"
+          message: >
+            You left without turning off the lights.
+            {{ expand('light.all_lights') | selectattr('state','eq','on')
+               | list | count }} light(s) still on.
+          data:
+            tag: lights_away
+            actions:
+              - action: "TURN_OFF_ALL_LIGHTS"
+                title: "Turn All Off 💡"
+              - action: "LIGHTS_AWAY_DISMISS"
+                title: "Leave Them On"
+
+  - id: notify_turn_off_all_lights
+    alias: "Notify — Turn Off All Lights Action"
+    trigger:
+      - platform: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: TURN_OFF_ALL_LIGHTS
+    action:
+      - service: light.turn_off
+        target:
+          entity_id: light.all_lights           # REPLACE_ME (light group)
+      - service: notify.mobile_app_your_phone  # REPLACE_ME
+        data:
+          title: "✅ All Lights Off"
+          message: "All lights have been turned off."
+          data:
+            tag: lights_away
+
+  # ──────────────────────────────────────────────────────────
+  # 6. LOW BATTERY ALERT
+  # ──────────────────────────────────────────────────────────
+  - id: notify_low_battery
+    alias: "Notify — Low Battery Device"
+    description: "Daily check for devices below 15% battery"
+    trigger:
+      - platform: time
+        at: "09:00:00"
+    variables:
+      low_batteries: >
+        {% set ns = namespace(devices=[]) %}
+        {% for s in states.sensor
+           | selectattr('attributes.device_class','eq','battery') %}
+          {% if s.state | int(100) < 15 %}
+            {% set ns.devices = ns.devices + [s.name ~ ' (' ~ s.state ~ '%)'] %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.devices }}
+    condition:
+      - condition: template
+        value_template: "{{ low_batteries | length > 0 }}"
+    action:
+      - service: notify.mobile_app_your_phone  # REPLACE_ME
+        data:
+          title: "🔋 Low Battery Alert"
+          message: >
+            {{ low_batteries | join(', ') }}
+          data:
+            tag: low_battery
+            color: "#ff9f0a"
+
+  # ──────────────────────────────────────────────────────────
+  # 7. THERMOSTAT EXTREME TEMP
+  # ──────────────────────────────────────────────────────────
+  - id: notify_thermostat_extreme
+    alias: "Notify — Extreme Indoor Temperature"
+    description: "Alert if indoor temp gets too high or low"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.thermostat_temperature  # REPLACE_ME
+        above: 82
+      - platform: numeric_state
+        entity_id: sensor.thermostat_temperature  # REPLACE_ME
+        below: 60
+    action:
+      - service: notify.everyone                  # REPLACE_ME
+        data:
+          title: >
+            {% if trigger.to_state.state | float > 82 %}
+            🥵 Home is Too Hot!
+            {% else %}
+            🥶 Home is Too Cold!
+            {% endif %}
+          message: >
+            Indoor temperature is {{ states('sensor.thermostat_temperature') }}°F.
+          data:
+            tag: thermostat_extreme
+            color: >
+              {% if trigger.to_state.state | float > 82 %}#ff9f0a{% else %}#64d2ff{% endif %}
+            actions:
+              - action: "THERMOSTAT_AUTO"
+                title: "Set Auto Mode 🌡️"
+              - action: "THERMOSTAT_DISMISS"
+                title: "Dismiss"
+
+  - id: notify_thermostat_auto_action
+    alias: "Notify — Set Thermostat Auto Action"
+    trigger:
+      - platform: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: THERMOSTAT_AUTO
+    action:
+      - service: climate.set_hvac_mode
+        target:
+          entity_id: climate.thermostat          # REPLACE_ME
+        data:
+          hvac_mode: heat_cool
+      - service: notify.everyone                 # REPLACE_ME
+        data:
+          title: "🌡️ Thermostat Set to Auto"
+          message: "Climate control activated."
+          data:
+            tag: thermostat_extreme
+
+  # ──────────────────────────────────────────────────────────
+  # 8. DAILY SUMMARY — morning brief
+  # ──────────────────────────────────────────────────────────
+  - id: notify_daily_summary
+    alias: "Notify — Daily Morning Summary"
+    description: "Morning brief with weather, commute & reminders"
+    trigger:
+      - platform: template
+        value_template: >
+          {% set alarm_h = states('input_number.morning_alarm_hour') | int %}
+          {% set alarm_m = states('input_number.morning_alarm_minute') | int %}
+          {{ now().hour == alarm_h and now().minute == (alarm_m + 5) % 60 }}
+    condition:
+      - condition: state
+        entity_id: input_boolean.vacation_mode
+        state: "off"
+    action:
+      - service: notify.mobile_app_your_phone    # REPLACE_ME
+        data:
+          title: "🌅 Good Morning!"
+          message: >
+            {{ now().strftime('%A, %B %-d') }} · {{ states('sensor.outdoor_temperature') }}°F
+            Outside · {{ states('weather.home') | title }}
+
+            Your commute: ~{{ states('sensor.your_commute_time') }} min
+            Partner commute: ~{{ states('sensor.partner_commute_time') }} min
+
+            {% set lights_on = expand('light.all_lights') | selectattr('state','eq','on') | list | count %}
+            {% if lights_on > 0 %}⚠️ {{ lights_on }} light(s) still on.{% endif %}
+          data:
+            tag: daily_summary
+            group: morning

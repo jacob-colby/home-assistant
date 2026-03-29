@@ -1,0 +1,504 @@
+# ============================================================
+#  Couple Automations Package
+#  Quality-of-life automations designed for a two-person
+#  household. Drop this file in your packages/ directory and
+#  add `homeassistant: packages: !include_dir_named packages/`
+#  to configuration.yaml.
+#
+#  ENTITIES TO REPLACE (search REPLACE_ME):
+#    person.you / person.partner  → your person entities
+#    notify.mobile_app_your_phone → your HA companion app notify service
+#    notify.mobile_app_partner_phone → partner's notify service
+#    climate.thermostat           → your thermostat
+#    light.*                      → light entities/groups
+#    media_player.*               → speakers/TV
+# ============================================================
+
+# ── Input helpers ────────────────────────────────────────────
+input_boolean:
+  couple_home_mode:
+    name: "Couple Home Mode"
+    icon: mdi:home-account
+
+  guest_mode:
+    name: "Guest Mode"
+    icon: mdi:account-group
+
+  vacation_mode:
+    name: "Vacation Mode"
+    icon: mdi:airplane-takeoff
+
+input_text:
+  dinner_tonight:
+    name: "Dinner Tonight"
+    icon: mdi:food
+    max: 100
+
+input_number:
+  morning_alarm_hour:
+    name: "Morning Alarm Hour"
+    min: 4
+    max: 11
+    step: 1
+    unit_of_measurement: h
+    icon: mdi:clock-outline
+
+  morning_alarm_minute:
+    name: "Morning Alarm Minute"
+    min: 0
+    max: 59
+    step: 5
+    unit_of_measurement: min
+    icon: mdi:clock-outline
+
+
+# ── Scenes ───────────────────────────────────────────────────
+scene:
+  - name: Wake Up
+    id: wake_up
+    entities:
+      light.bedroom:              # REPLACE_ME
+        state: "on"
+        brightness_pct: 40
+        color_temp: 370           # warm white
+      light.living_room:          # REPLACE_ME
+        state: "on"
+        brightness_pct: 60
+        color_temp: 350
+      climate.thermostat:         # REPLACE_ME
+        state: heat_cool
+        temperature: 70
+
+  - name: Dinner Time
+    id: dinner_time
+    entities:
+      light.kitchen:              # REPLACE_ME
+        state: "on"
+        brightness_pct: 90
+        color_temp: 300
+      light.living_room:          # REPLACE_ME
+        state: "on"
+        brightness_pct: 70
+        color_temp: 280
+      light.dining_room:          # REPLACE_ME
+        state: "on"
+        brightness_pct: 80
+        color_temp: 280
+
+  - name: Movie Time
+    id: movie_time
+    entities:
+      light.living_room:          # REPLACE_ME
+        state: "on"
+        brightness_pct: 10
+        rgb_color: [30, 30, 80]
+      light.kitchen:              # REPLACE_ME
+        state: "off"
+      light.bedroom:              # REPLACE_ME
+        state: "off"
+
+  - name: Date Night
+    id: date_night
+    entities:
+      light.living_room:          # REPLACE_ME
+        state: "on"
+        brightness_pct: 30
+        rgb_color: [180, 40, 80]
+      light.dining_room:          # REPLACE_ME
+        state: "on"
+        brightness_pct: 40
+        rgb_color: [200, 80, 60]
+      media_player.living_room:   # REPLACE_ME
+        state: playing
+      climate.thermostat:         # REPLACE_ME
+        state: heat_cool
+        temperature: 72
+
+  - name: Good Night
+    id: good_night
+    entities:
+      light.living_room:          # REPLACE_ME
+        state: "off"
+      light.kitchen:              # REPLACE_ME
+        state: "off"
+      light.dining_room:          # REPLACE_ME
+        state: "off"
+      light.bedroom:              # REPLACE_ME
+        state: "on"
+        brightness_pct: 5
+        color_temp: 500           # candlelight
+      lock.front_door:            # REPLACE_ME
+        state: locked
+      climate.thermostat:         # REPLACE_ME
+        state: heat_cool
+        temperature: 68
+
+  - name: Away
+    id: away_mode
+    entities:
+      light.living_room:          # REPLACE_ME
+        state: "off"
+      light.kitchen:              # REPLACE_ME
+        state: "off"
+      light.bedroom:              # REPLACE_ME
+        state: "off"
+      climate.thermostat:         # REPLACE_ME
+        state: heat_cool
+        temperature: 62           # eco setback
+
+
+# ── Scripts ──────────────────────────────────────────────────
+script:
+  goodnight_routine:
+    alias: "Goodnight Routine"
+    description: "Lock up, dim to bedtime, check doors"
+    icon: mdi:weather-night
+    sequence:
+      - service: scene.turn_on
+        target:
+          entity_id: scene.good_night
+      - service: lock.lock
+        target:
+          entity_id: lock.front_door             # REPLACE_ME
+      # Notify if any window/door sensors are open
+      - condition: template
+        value_template: >
+          {{ expand('binary_sensor.all_windows')
+             | selectattr('state','eq','on') | list | count > 0 }}
+      - service: notify.mobile_app_your_phone    # REPLACE_ME
+        data:
+          title: "🌙 Goodnight Check"
+          message: >
+            Heads up — some windows are still open:
+            {% for s in expand('binary_sensor.all_windows')
+               | selectattr('state','eq','on') %}
+              {{ s.name }}{% if not loop.last %}, {% endif %}
+            {% endfor %}
+
+  leaving_home:
+    alias: "Leaving Home"
+    description: "Set away mode when both leave"
+    icon: mdi:home-export-outline
+    sequence:
+      - service: scene.turn_on
+        target:
+          entity_id: scene.away_mode
+      - service: lock.lock
+        target:
+          entity_id: lock.front_door             # REPLACE_ME
+      - service: notify.mobile_app_your_phone    # REPLACE_ME
+        data:
+          title: "🏠 Left Home"
+          message: "Away mode activated. Stay safe!"
+
+  welcome_home_routine:
+    alias: "Welcome Home"
+    description: "Run when first person arrives"
+    icon: mdi:home-import-outline
+    sequence:
+      - service: scene.turn_on
+        target:
+          entity_id: scene.wake_up
+      - service: climate.set_hvac_mode
+        target:
+          entity_id: climate.thermostat          # REPLACE_ME
+        data:
+          hvac_mode: heat_cool
+      - service: climate.set_temperature
+        target:
+          entity_id: climate.thermostat          # REPLACE_ME
+        data:
+          temperature: 70
+
+
+# ── Automations ───────────────────────────────────────────────
+automation:
+
+  # ──────────────────────────────────────────────────────────
+  # 1. AUTO WELCOME HOME
+  #    Trigger when either person returns and the house was empty.
+  # ──────────────────────────────────────────────────────────
+  - id: auto_welcome_home
+    alias: "Welcome Home (First Person)"
+    description: "Run welcome routine when the first person arrives home"
+    trigger:
+      - platform: state
+        entity_id:
+          - person.you                           # REPLACE_ME
+          - person.partner                       # REPLACE_ME
+        to: "home"
+    condition:
+      # Only fire if BOTH were away (first arrival)
+      - condition: template
+        value_template: >
+          {% set you_was_away     = trigger.from_state.state != 'home' %}
+          {% set partner_is_away  = is_state('person.partner', 'not_home') %}
+          {{ you_was_away and partner_is_away }}
+    action:
+      - service: script.welcome_home_routine
+
+  # ──────────────────────────────────────────────────────────
+  # 2. AUTO AWAY MODE
+  #    Both people have left — lock up & set eco temps.
+  # ──────────────────────────────────────────────────────────
+  - id: auto_away_mode
+    alias: "Away Mode (Both Left)"
+    description: "Activate away mode when both people leave"
+    trigger:
+      - platform: state
+        entity_id:
+          - person.you                           # REPLACE_ME
+          - person.partner                       # REPLACE_ME
+        to: "not_home"
+    condition:
+      - condition: state
+        entity_id: person.you                    # REPLACE_ME
+        state: "not_home"
+      - condition: state
+        entity_id: person.partner               # REPLACE_ME
+        state: "not_home"
+    action:
+      - delay: "00:05:00"                        # 5-min grace period
+      - condition: state
+        entity_id: person.you                    # REPLACE_ME
+        state: "not_home"
+      - condition: state
+        entity_id: person.partner               # REPLACE_ME
+        state: "not_home"
+      - service: script.leaving_home
+
+  # ──────────────────────────────────────────────────────────
+  # 3. ADAPTIVE MORNING SCENE
+  #    Gradually brightens bedroom lights at user-set alarm time.
+  # ──────────────────────────────────────────────────────────
+  - id: adaptive_morning_scene
+    alias: "Adaptive Morning Wake-Up Lights"
+    description: "Gentle sunrise simulation at alarm time"
+    trigger:
+      - platform: template
+        value_template: >
+          {% set alarm_h = states('input_number.morning_alarm_hour') | int %}
+          {% set alarm_m = states('input_number.morning_alarm_minute') | int %}
+          {{ now().hour == alarm_h and now().minute == alarm_m }}
+    condition:
+      - condition: state
+        entity_id: input_boolean.vacation_mode
+        state: "off"
+    action:
+      # Start very dim warm
+      - service: light.turn_on
+        target:
+          entity_id: light.bedroom               # REPLACE_ME
+        data:
+          brightness_pct: 5
+          color_temp: 500
+          transition: 5
+      - delay: "00:10:00"
+      - service: light.turn_on
+        target:
+          entity_id: light.bedroom               # REPLACE_ME
+        data:
+          brightness_pct: 30
+          color_temp: 420
+          transition: 300                        # 5-min ramp
+      - delay: "00:05:00"
+      - service: light.turn_on
+        target:
+          entity_id: light.bedroom               # REPLACE_ME
+        data:
+          brightness_pct: 70
+          color_temp: 340
+          transition: 300
+      - service: notify.mobile_app_your_phone    # REPLACE_ME
+        data:
+          title: "☀️ Good Morning!"
+          message: >
+            Today is {{ now().strftime('%A, %B %-d') }}.
+            {% if states('sensor.weather_condition') != 'unknown' %}
+            Outside: {{ states('sensor.outdoor_temperature') }}°, {{ states('weather.home') }}.
+            {% endif %}
+
+  # ──────────────────────────────────────────────────────────
+  # 4. PARTNER ETA NOTIFICATION
+  #    Notify when partner is ~10 min from home.
+  # ──────────────────────────────────────────────────────────
+  - id: partner_eta_notification
+    alias: "Partner ETA — 10 Minutes Out"
+    description: "Alert when partner is almost home"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.partner_commute_time   # REPLACE_ME (Waze travel time sensor)
+        below: 11
+    condition:
+      - condition: state
+        entity_id: person.partner               # REPLACE_ME
+        state: "not_home"
+      - condition: state
+        entity_id: person.you                    # REPLACE_ME
+        state: "home"
+      - condition: time
+        after: "15:00:00"
+        before: "23:00:00"
+    action:
+      - service: notify.mobile_app_your_phone    # REPLACE_ME
+        data:
+          title: "🚗 Partner is 10 min away!"
+          message: "{{ states('sensor.partner_commute_time') }} min estimated."
+          data:
+            tag: partner_eta
+            group: presence
+
+  # ──────────────────────────────────────────────────────────
+  # 5. MOVIE TIME — AUTO DIM
+  #    Dim lights when TV starts playing after 7 PM.
+  # ──────────────────────────────────────────────────────────
+  - id: movie_time_auto_dim
+    alias: "Movie Time — Auto Dim Lights"
+    description: "Dim living room when TV starts playing in the evening"
+    trigger:
+      - platform: state
+        entity_id: media_player.living_room     # REPLACE_ME
+        to: "playing"
+    condition:
+      - condition: time
+        after: "19:00:00"
+        before: "02:00:00"
+      - condition: state
+        entity_id: input_boolean.guest_mode
+        state: "off"
+    action:
+      - service: scene.turn_on
+        target:
+          entity_id: scene.movie_time
+
+  # ──────────────────────────────────────────────────────────
+  # 6. MOVIE TIME — RESTORE LIGHTS
+  #    Bring lights back when TV pauses or stops.
+  # ──────────────────────────────────────────────────────────
+  - id: movie_time_restore_lights
+    alias: "Movie Time — Restore Lights on Pause"
+    description: "Restore ambient light when TV pauses"
+    trigger:
+      - platform: state
+        entity_id: media_player.living_room     # REPLACE_ME
+        to: "paused"
+    action:
+      - service: light.turn_on
+        target:
+          entity_id: light.living_room          # REPLACE_ME
+        data:
+          brightness_pct: 60
+          color_temp: 350
+          transition: 3
+
+  # ──────────────────────────────────────────────────────────
+  # 7. DINNER TIME REMINDER
+  #    Daily notification at 5:30 PM suggesting dinner prep.
+  # ──────────────────────────────────────────────────────────
+  - id: dinner_time_reminder
+    alias: "Dinner Time Reminder"
+    description: "Actionable notification at 5:30 PM for dinner"
+    trigger:
+      - platform: time
+        at: "17:30:00"
+    condition:
+      - condition: template
+        value_template: >
+          {{ is_state('person.you','home') or is_state('person.partner','home') }}
+      - condition: state
+        entity_id: input_boolean.vacation_mode
+        state: "off"
+    action:
+      - service: notify.mobile_app_your_phone   # REPLACE_ME
+        data:
+          title: "🍽️ Dinner Time?"
+          message: >
+            It's dinner time! What's on the menu tonight?
+            {% if states('input_text.dinner_tonight') | length > 0 %}
+            Tonight: {{ states('input_text.dinner_tonight') }}
+            {% endif %}
+          data:
+            actions:
+              - action: "DINNER_SCENE"
+                title: "Set Dinner Scene 🕯️"
+              - action: "SKIP_DINNER"
+                title: "Skip"
+
+  - id: dinner_time_action_handler
+    alias: "Dinner Time — Handle Notification Action"
+    trigger:
+      - platform: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: DINNER_SCENE
+    action:
+      - service: scene.turn_on
+        target:
+          entity_id: scene.dinner_time
+
+  # ──────────────────────────────────────────────────────────
+  # 8. GUEST MODE — DISABLE PERSONAL AUTOMATIONS
+  # ──────────────────────────────────────────────────────────
+  - id: guest_mode_disable_personal
+    alias: "Guest Mode — Suspend Personal Automations"
+    description: "Disable intimate automations when guests are present"
+    trigger:
+      - platform: state
+        entity_id: input_boolean.guest_mode
+        to: "on"
+    action:
+      - service: automation.turn_off
+        target:
+          entity_id:
+            - automation.movie_time_auto_dim
+            - automation.dinner_time_reminder
+            - automation.adaptive_morning_scene
+
+  - id: guest_mode_restore
+    alias: "Guest Mode — Restore Automations"
+    trigger:
+      - platform: state
+        entity_id: input_boolean.guest_mode
+        to: "off"
+    action:
+      - service: automation.turn_on
+        target:
+          entity_id:
+            - automation.movie_time_auto_dim
+            - automation.dinner_time_reminder
+            - automation.adaptive_morning_scene
+
+  # ──────────────────────────────────────────────────────────
+  # 9. VACATION MODE — RANDOM LIGHTS
+  #    Simulate occupancy with random light switching.
+  # ──────────────────────────────────────────────────────────
+  - id: vacation_mode_random_lights
+    alias: "Vacation Mode — Random Occupancy Lights"
+    description: "Turn random lights on/off during evening to deter burglars"
+    trigger:
+      - platform: time_pattern
+        minutes: "/23"                           # fires every 23 min
+    condition:
+      - condition: state
+        entity_id: input_boolean.vacation_mode
+        state: "on"
+      - condition: time
+        after: "18:00:00"
+        before: "23:30:00"
+    action:
+      - service: light.turn_on
+        target:
+          entity_id: >
+            {% set lights = ['light.living_room','light.kitchen','light.bedroom'] %}
+            {{ lights | random }}               # REPLACE_ME with your light list
+        data:
+          brightness_pct: "{{ range(30, 80) | random }}"
+          transition: 10
+      - delay: "00:{{ range(5,18) | random }}:00"
+      - service: light.turn_off
+        target:
+          entity_id: >
+            {% set lights = ['light.living_room','light.kitchen','light.bedroom'] %}
+            {{ lights | random }}               # REPLACE_ME with your light list
+        data:
+          transition: 15

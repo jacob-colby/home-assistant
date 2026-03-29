@@ -1,0 +1,1008 @@
+# ============================================================
+#  Daily Driver Dashboard  —  ui-lovelace.yaml
+#  Two-person household • Landscape tablet + mobile
+#
+#  HACS REQUIREMENTS (install via HACS → Frontend):
+#    - mushroom             (Mushroom Cards suite)
+#    - mini-graph-card      (sparkline history graphs)
+#    - bubble-card          (iOS-style room bubbles)
+#    - auto-entities        (dynamic entity lists)
+#    - card-mod             (CSS overrides per card)
+#    - stack-in-card        (nest cards without gap)
+#    - layout-card          (masonry / custom grid)
+#    - weather-chart-card   (detailed forecast)
+#    - apexcharts-card      (energy / sensor history)
+#    - decluttering-card    (reusable card templates)
+#    - custom-button-card   (fully custom tile buttons)
+#
+#  ENTITIES TO REPLACE (search for REPLACE_ME):
+#    person.you             → your person entity
+#    person.partner         → partner's person entity
+#    climate.thermostat     → your thermostat entity
+#    lock.front_door        → front door lock
+#    binary_sensor.front_door → front door contact sensor
+#    binary_sensor.motion_* → motion sensors
+#    light.living_room      → room light groups
+#    media_player.living_room → media players
+#    sensor.weather_*       → weather entities
+#    vacuum.roomba          → robot vacuum
+#    switch.washing_machine → washer/dryer smart plugs
+#    sensor.commute_*       → Waze/Google travel time sensors
+# ============================================================
+
+title: "Home"
+views:
+
+# ════════════════════════════════════════════════════════════
+#  VIEW 1 — HOME  (Landing Page)
+#  Chips row → weather → quick lights → climate → security
+# ════════════════════════════════════════════════════════════
+  - title: Home
+    path: home
+    icon: mdi:home-variant-outline
+    type: panel
+    cards:
+      - type: custom:layout-card
+        layout_type: custom:masonry-layout
+        layout:
+          width: 340
+          max_cols: 4
+        cards:
+
+          # ── Status chips row ──────────────────────────────
+          - type: custom:mushroom-chips-card
+            chips:
+              - type: weather
+                entity: weather.home            # REPLACE_ME
+                show_conditions: true
+                show_temperature: true
+              - type: entity
+                entity: person.you              # REPLACE_ME
+                icon: mdi:account
+                content_info: state
+              - type: entity
+                entity: person.partner          # REPLACE_ME
+                icon: mdi:account-heart
+                content_info: state
+              - type: template
+                icon: >
+                  {% if is_state('lock.front_door', 'locked') %}
+                    mdi:lock
+                  {% else %}
+                    mdi:lock-open-alert
+                  {% endif %}
+                icon_color: >
+                  {% if is_state('lock.front_door', 'locked') %}
+                    green
+                  {% else %}
+                    red
+                  {% endif %}
+                content: >
+                  {{ states('lock.front_door') | capitalize }}
+              - type: template
+                icon: mdi:thermometer
+                icon_color: blue
+                content: >
+                  {{ states('sensor.thermostat_temperature') | round(1) }}°
+              - type: template
+                icon: mdi:bell-outline
+                tap_action:
+                  action: navigate
+                  navigation_path: /lovelace/notifications
+            card_mod:
+              style: |
+                ha-card { background: transparent; box-shadow: none; padding: 6px 0; }
+
+          # ── Weather hero card ─────────────────────────────
+          - type: custom:weather-chart-card
+            entity: weather.home                # REPLACE_ME
+            show_feels_like: true
+            show_humidity: true
+            show_wind: true
+            card_mod:
+              style: |
+                ha-card { border-radius: 20px; }
+
+          # ── Good Morning / Good Evening greeting ──────────
+          - type: custom:mushroom-template-card
+            primary: >
+              {% set h = now().hour %}
+              {% if h < 12 %}Good morning 👋
+              {% elif h < 17 %}Good afternoon
+              {% else %}Good evening
+              {% endif %}
+            secondary: >
+              {% set lights_on = expand('light.all_lights')
+                 | selectattr('state','eq','on') | list | count %}
+              {{ lights_on }} light{% if lights_on != 1 %}s{% endif %} on
+              · {{ states('sensor.outdoor_temperature') | round(1) }}° outside
+            icon: mdi:weather-sunny
+            icon_color: >
+              {% set h = now().hour %}
+              {% if h < 6 or h > 20 %}indigo{% elif h < 12 %}amber{% else %}blue{% endif %}
+            fill_container: false
+            tap_action:
+              action: none
+            card_mod:
+              style: |
+                ha-card { background: linear-gradient(135deg,#1e2235 0%,#1c1c20 100%); }
+
+          # ── Quick-access light tiles (living areas) ───────
+          - type: custom:mushroom-light-card
+            entity: light.living_room           # REPLACE_ME
+            name: Living Room
+            show_brightness_control: true
+            show_color_temp_control: true
+            collapsible_controls: true
+            layout: horizontal
+
+          - type: custom:mushroom-light-card
+            entity: light.bedroom               # REPLACE_ME
+            name: Bedroom
+            show_brightness_control: true
+            show_color_temp_control: true
+            collapsible_controls: true
+            layout: horizontal
+
+          - type: custom:mushroom-light-card
+            entity: light.kitchen               # REPLACE_ME
+            name: Kitchen
+            show_brightness_control: true
+            collapsible_controls: true
+            layout: horizontal
+
+          # ── Climate card ──────────────────────────────────
+          - type: custom:mushroom-climate-card
+            entity: climate.thermostat          # REPLACE_ME
+            name: Climate
+            show_temperature_control: true
+            hvac_modes:
+              - "off"
+              - heat
+              - cool
+              - heat_cool
+            layout: horizontal
+            card_mod:
+              style: |
+                ha-card { border-left: 3px solid var(--warning-color); }
+
+          # ── Security panel ────────────────────────────────
+          - type: vertical-stack
+            cards:
+              - type: custom:mushroom-title-card
+                title: Security
+                subtitle: Front door & motion
+
+              - type: custom:mushroom-entity-card
+                entity: lock.front_door         # REPLACE_ME
+                name: Front Door
+                icon: mdi:door-closed-lock
+                tap_action:
+                  action: call-service
+                  service: lock.toggle
+                  service_data:
+                    entity_id: lock.front_door
+                icon_color: >
+                  {% if is_state('lock.front_door', 'locked') %}green{% else %}red{% endif %}
+
+              - type: custom:auto-entities
+                card:
+                  type: custom:mushroom-entity-card
+                filter:
+                  include:
+                    - domain: binary_sensor
+                      attributes:
+                        device_class: motion
+                      state: "on"
+                  exclude: []
+                show_empty: false
+                sort:
+                  method: last_changed
+                  reverse: true
+
+          # ── Media player (now playing) ────────────────────
+          - type: conditional
+            conditions:
+              - entity: media_player.living_room   # REPLACE_ME
+                state_not: "unavailable"
+              - entity: media_player.living_room
+                state_not: "idle"
+            card:
+              type: custom:mushroom-media-player-card
+              entity: media_player.living_room   # REPLACE_ME
+              name: Now Playing
+              use_media_info: true
+              show_volume_level: true
+              media_controls:
+                - play_pause_stop
+                - previous
+                - next
+              volume_controls:
+                - volume_slider
+                - volume_mute
+              layout: horizontal
+
+          # ── Vacuum — only shows when active or stuck ──────
+          - type: conditional
+            conditions:
+              - entity: vacuum.roomba             # REPLACE_ME
+                state_not: "docked"
+            card:
+              type: custom:mushroom-vacuum-card
+              entity: vacuum.roomba               # REPLACE_ME
+              name: Roomba
+              commands:
+                - start_pause
+                - stop
+                - locate
+                - clean_spot
+              layout: horizontal
+              card_mod:
+                style: |
+                  ha-card { border-left: 3px solid var(--warning-color); }
+
+          # ── Scene quick-access row ────────────────────────
+          - type: custom:stack-in-card
+            cards:
+              - type: custom:mushroom-title-card
+                title: Scenes
+              - type: horizontal-stack
+                cards:
+                  - type: custom:button-card
+                    name: Movie
+                    icon: mdi:television-play
+                    tap_action:
+                      action: call-service
+                      service: scene.turn_on
+                      service_data:
+                        entity_id: scene.movie_time   # REPLACE_ME
+                    styles:
+                      card:
+                        - background: "#1c1c20"
+                        - border-radius: 16px
+                        - padding: 16px 8px
+                      icon:
+                        - color: "#5e9cf8"
+                        - width: 28px
+                      name:
+                        - font-size: 11px
+                        - color: "#c0c0cc"
+
+                  - type: custom:button-card
+                    name: Dinner
+                    icon: mdi:food-fork-drink
+                    tap_action:
+                      action: call-service
+                      service: scene.turn_on
+                      service_data:
+                        entity_id: scene.dinner_time  # REPLACE_ME
+                    styles:
+                      card:
+                        - background: "#1c1c20"
+                        - border-radius: 16px
+                        - padding: 16px 8px
+                      icon:
+                        - color: "#ff9f0a"
+                        - width: 28px
+                      name:
+                        - font-size: 11px
+                        - color: "#c0c0cc"
+
+                  - type: custom:button-card
+                    name: Goodnight
+                    icon: mdi:weather-night
+                    tap_action:
+                      action: call-service
+                      service: script.goodnight_routine   # REPLACE_ME
+                    styles:
+                      card:
+                        - background: "#1c1c20"
+                        - border-radius: 16px
+                        - padding: 16px 8px
+                      icon:
+                        - color: "#64d2ff"
+                        - width: 28px
+                      name:
+                        - font-size: 11px
+                        - color: "#c0c0cc"
+
+                  - type: custom:button-card
+                    name: Away
+                    icon: mdi:home-export-outline
+                    tap_action:
+                      action: call-service
+                      service: script.leaving_home        # REPLACE_ME
+                    styles:
+                      card:
+                        - background: "#1c1c20"
+                        - border-radius: 16px
+                        - padding: 16px 8px
+                      icon:
+                        - color: "#34c759"
+                        - width: 28px
+                      name:
+                        - font-size: 11px
+                        - color: "#c0c0cc"
+
+
+# ════════════════════════════════════════════════════════════
+#  VIEW 2 — ROOMS
+#  Bubble Card room-by-room overview
+# ════════════════════════════════════════════════════════════
+  - title: Rooms
+    path: rooms
+    icon: mdi:floor-plan
+    type: panel
+    cards:
+      - type: custom:layout-card
+        layout_type: custom:masonry-layout
+        layout:
+          width: 320
+          max_cols: 4
+        cards:
+
+          - type: custom:mushroom-title-card
+            title: Rooms
+            subtitle: Tap a room to expand controls
+
+          # ── Living Room bubble ────────────────────────────
+          - type: custom:bubble-card
+            card_type: separator
+            name: Living Room
+            icon: mdi:sofa-outline
+
+          - type: custom:bubble-card
+            card_type: button
+            entity: light.living_room           # REPLACE_ME
+            name: Lights
+            icon: mdi:ceiling-light
+            button_type: slider
+            show_state: true
+
+          - type: custom:bubble-card
+            card_type: button
+            entity: media_player.living_room    # REPLACE_ME
+            name: TV / Speakers
+            icon: mdi:television-speaker
+            button_type: switch
+            show_state: true
+
+          - type: custom:bubble-card
+            card_type: button
+            entity: climate.thermostat          # REPLACE_ME
+            name: Climate
+            icon: mdi:thermostat
+            show_state: true
+
+          # ── Bedroom bubble ────────────────────────────────
+          - type: custom:bubble-card
+            card_type: separator
+            name: Bedroom
+            icon: mdi:bed-outline
+
+          - type: custom:bubble-card
+            card_type: button
+            entity: light.bedroom               # REPLACE_ME
+            name: Lights
+            icon: mdi:ceiling-light
+            button_type: slider
+            show_state: true
+
+          - type: custom:bubble-card
+            card_type: button
+            entity: media_player.bedroom        # REPLACE_ME
+            name: Speakers
+            icon: mdi:speaker
+            button_type: switch
+            show_state: true
+
+          - type: custom:bubble-card
+            card_type: button
+            entity: switch.bedroom_fan          # REPLACE_ME
+            name: Fan
+            icon: mdi:fan
+            button_type: switch
+            show_state: true
+
+          # ── Kitchen bubble ────────────────────────────────
+          - type: custom:bubble-card
+            card_type: separator
+            name: Kitchen
+            icon: mdi:countertop-outline
+
+          - type: custom:bubble-card
+            card_type: button
+            entity: light.kitchen               # REPLACE_ME
+            name: Lights
+            icon: mdi:ceiling-light
+            button_type: slider
+            show_state: true
+
+          - type: custom:bubble-card
+            card_type: button
+            entity: switch.coffee_maker         # REPLACE_ME
+            name: Coffee Maker
+            icon: mdi:coffee
+            button_type: switch
+            show_state: true
+
+          # ── Bathroom bubble ───────────────────────────────
+          - type: custom:bubble-card
+            card_type: separator
+            name: Bathroom
+            icon: mdi:shower-head
+
+          - type: custom:bubble-card
+            card_type: button
+            entity: light.bathroom              # REPLACE_ME
+            name: Lights
+            icon: mdi:ceiling-light
+            button_type: slider
+            show_state: true
+
+          - type: custom:bubble-card
+            card_type: button
+            entity: fan.bathroom_exhaust        # REPLACE_ME
+            name: Exhaust Fan
+            icon: mdi:fan
+            button_type: switch
+            show_state: true
+
+          # ── Outdoor bubble ────────────────────────────────
+          - type: custom:bubble-card
+            card_type: separator
+            name: Outdoor
+            icon: mdi:tree-outline
+
+          - type: custom:bubble-card
+            card_type: button
+            entity: light.porch                 # REPLACE_ME
+            name: Porch Light
+            icon: mdi:outdoor-lamp
+            button_type: switch
+            show_state: true
+
+          - type: custom:bubble-card
+            card_type: button
+            entity: switch.garden_irrigation    # REPLACE_ME
+            name: Irrigation
+            icon: mdi:sprinkler-variant
+            button_type: switch
+            show_state: true
+
+
+# ════════════════════════════════════════════════════════════
+#  VIEW 3 — DEVICES
+#  Full device inventory with conditional visibility
+# ════════════════════════════════════════════════════════════
+  - title: Devices
+    path: devices
+    icon: mdi:devices
+    type: panel
+    cards:
+      - type: custom:layout-card
+        layout_type: custom:masonry-layout
+        layout:
+          width: 340
+          max_cols: 3
+        cards:
+
+          - type: custom:mushroom-title-card
+            title: Devices
+            subtitle: All controllable devices
+
+          # ── All lights (auto-entities) ────────────────────
+          - type: custom:stack-in-card
+            cards:
+              - type: custom:mushroom-title-card
+                title: Lights
+              - type: custom:auto-entities
+                card:
+                  type: grid
+                  columns: 2
+                  square: false
+                filter:
+                  include:
+                    - domain: light
+                      not:
+                        entity_id: "*_group"
+                sort:
+                  method: name
+                show_empty: false
+
+          # ── All switches ──────────────────────────────────
+          - type: custom:stack-in-card
+            cards:
+              - type: custom:mushroom-title-card
+                title: Switches & Plugs
+              - type: custom:auto-entities
+                card:
+                  type: grid
+                  columns: 2
+                  square: false
+                filter:
+                  include:
+                    - domain: switch
+                sort:
+                  method: name
+                show_empty: false
+
+          # ── Media players ─────────────────────────────────
+          - type: custom:stack-in-card
+            cards:
+              - type: custom:mushroom-title-card
+                title: Media
+              - type: custom:auto-entities
+                card:
+                  type: vertical-stack
+                card_param: cards
+                filter:
+                  include:
+                    - domain: media_player
+                      state_not: unavailable
+                sort:
+                  method: last_changed
+                  reverse: true
+                show_empty: false
+
+          # ── Climate devices ───────────────────────────────
+          - type: custom:auto-entities
+            card:
+              type: custom:mushroom-climate-card
+              show_temperature_control: true
+            filter:
+              include:
+                - domain: climate
+            show_empty: false
+
+          # ── Vacuum — conditional: only when not docked ────
+          - type: conditional
+            conditions:
+              - entity: vacuum.roomba              # REPLACE_ME
+                state_not: "docked"
+            card:
+              type: custom:stack-in-card
+              cards:
+                - type: custom:mushroom-title-card
+                  title: Vacuum
+                  subtitle: Currently active
+                - type: custom:mushroom-vacuum-card
+                  entity: vacuum.roomba            # REPLACE_ME
+                  commands:
+                    - start_pause
+                    - stop
+                    - locate
+                    - clean_spot
+                    - return_home
+
+          # ── Washer/Dryer — only when running ──────────────
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.washer_active   # REPLACE_ME
+                state: "on"
+            card:
+              type: custom:mushroom-template-card
+              primary: Washer Running
+              secondary: >
+                Started {{ relative_time(states.binary_sensor.washer_active.last_changed) }} ago
+              icon: mdi:washing-machine
+              icon_color: blue
+              badge_icon: mdi:play-circle
+              badge_color: blue
+
+          - type: conditional
+            conditions:
+              - entity: binary_sensor.dryer_active    # REPLACE_ME
+                state: "on"
+            card:
+              type: custom:mushroom-template-card
+              primary: Dryer Running
+              secondary: >
+                Started {{ relative_time(states.binary_sensor.dryer_active.last_changed) }} ago
+              icon: mdi:tumble-dryer
+              icon_color: orange
+              badge_icon: mdi:play-circle
+              badge_color: orange
+
+          # ── Battery overview (auto-entities) ──────────────
+          - type: custom:stack-in-card
+            cards:
+              - type: custom:mushroom-title-card
+                title: Low Batteries
+                subtitle: Below 20%
+              - type: custom:auto-entities
+                card:
+                  type: vertical-stack
+                card_param: cards
+                filter:
+                  include:
+                    - domain: sensor
+                      attributes:
+                        device_class: battery
+                      state: < 21
+                sort:
+                  method: state
+                show_empty: false
+                empty:
+                  type: custom:mushroom-template-card
+                  primary: All batteries OK
+                  icon: mdi:battery-check
+                  icon_color: green
+
+
+# ════════════════════════════════════════════════════════════
+#  VIEW 4 — US TWO  (Couple Dashboard)
+#  Commute times, shared tasks, couple-specific cards
+# ════════════════════════════════════════════════════════════
+  - title: Us Two
+    path: couple
+    icon: mdi:heart-outline
+    type: panel
+    cards:
+      - type: custom:layout-card
+        layout_type: custom:masonry-layout
+        layout:
+          width: 340
+          max_cols: 3
+        cards:
+
+          - type: custom:mushroom-title-card
+            title: Us Two
+            subtitle: Shared controls & info
+
+          # ── Presence cards ────────────────────────────────
+          - type: horizontal-stack
+            cards:
+              - type: custom:mushroom-person-card
+                entity: person.you              # REPLACE_ME
+                name: You
+                layout: vertical
+                tap_action:
+                  action: more-info
+              - type: custom:mushroom-person-card
+                entity: person.partner          # REPLACE_ME
+                name: Partner
+                layout: vertical
+                tap_action:
+                  action: more-info
+
+          # ── Commute times ─────────────────────────────────
+          - type: custom:stack-in-card
+            cards:
+              - type: custom:mushroom-title-card
+                title: Commute Times
+                subtitle: Live travel estimate
+
+              - type: horizontal-stack
+                cards:
+                  - type: custom:mushroom-template-card
+                    primary: "Your Commute"
+                    secondary: >
+                      {{ states('sensor.your_commute_time') }} min via
+                      {{ state_attr('sensor.your_commute_time','route') }}
+                    icon: mdi:car-arrow-right
+                    icon_color: >
+                      {% set t = states('sensor.your_commute_time') | int %}
+                      {% if t < 20 %}green{% elif t < 35 %}orange{% else %}red{% endif %}
+                    tap_action:
+                      action: more-info
+                      entity: sensor.your_commute_time   # REPLACE_ME
+
+                  - type: custom:mushroom-template-card
+                    primary: "Partner Commute"
+                    secondary: >
+                      {{ states('sensor.partner_commute_time') }} min via
+                      {{ state_attr('sensor.partner_commute_time','route') }}
+                    icon: mdi:car-arrow-left
+                    icon_color: >
+                      {% set t = states('sensor.partner_commute_time') | int %}
+                      {% if t < 20 %}green{% elif t < 35 %}orange{% else %}red{% endif %}
+                    tap_action:
+                      action: more-info
+                      entity: sensor.partner_commute_time # REPLACE_ME
+
+          # ── Shared shopping / to-do list ──────────────────
+          - type: custom:stack-in-card
+            cards:
+              - type: custom:mushroom-title-card
+                title: Shopping List
+              - type: todo-list
+                entity: todo.shopping_list      # REPLACE_ME (Home Assistant built-in To-do)
+                hide_completed: true
+
+          # ── Couple's scenes ───────────────────────────────
+          - type: custom:stack-in-card
+            cards:
+              - type: custom:mushroom-title-card
+                title: Our Scenes
+              - type: grid
+                columns: 2
+                square: false
+                cards:
+                  - type: custom:button-card
+                    name: Date Night
+                    icon: mdi:candle
+                    tap_action:
+                      action: call-service
+                      service: scene.turn_on
+                      service_data:
+                        entity_id: scene.date_night   # REPLACE_ME
+                    styles:
+                      card:
+                        - background: "#2a1a2a"
+                        - border-radius: 16px
+                        - padding: 20px 8px
+                      icon:
+                        - color: "#ff375f"
+                        - width: 32px
+                      name:
+                        - font-size: 12px
+                        - color: "#c0c0cc"
+
+                  - type: custom:button-card
+                    name: Movie Night
+                    icon: mdi:popcorn
+                    tap_action:
+                      action: call-service
+                      service: scene.turn_on
+                      service_data:
+                        entity_id: scene.movie_time   # REPLACE_ME
+                    styles:
+                      card:
+                        - background: "#1a1a2a"
+                        - border-radius: 16px
+                        - padding: 20px 8px
+                      icon:
+                        - color: "#5e9cf8"
+                        - width: 32px
+                      name:
+                        - font-size: 12px
+                        - color: "#c0c0cc"
+
+                  - type: custom:button-card
+                    name: Dinner Time
+                    icon: mdi:silverware-fork-knife
+                    tap_action:
+                      action: call-service
+                      service: scene.turn_on
+                      service_data:
+                        entity_id: scene.dinner_time  # REPLACE_ME
+                    styles:
+                      card:
+                        - background: "#2a1a10"
+                        - border-radius: 16px
+                        - padding: 20px 8px
+                      icon:
+                        - color: "#ff9f0a"
+                        - width: 32px
+                      name:
+                        - font-size: 12px
+                        - color: "#c0c0cc"
+
+                  - type: custom:button-card
+                    name: Wake Up
+                    icon: mdi:weather-sunset-up
+                    tap_action:
+                      action: call-service
+                      service: scene.turn_on
+                      service_data:
+                        entity_id: scene.wake_up      # REPLACE_ME
+                    styles:
+                      card:
+                        - background: "#1a2a1a"
+                        - border-radius: 16px
+                        - padding: 20px 8px
+                      icon:
+                        - color: "#34c759"
+                        - width: 32px
+                      name:
+                        - font-size: 12px
+                        - color: "#c0c0cc"
+
+          # ── Energy / cost this month ───────────────────────
+          - type: custom:stack-in-card
+            cards:
+              - type: custom:mushroom-title-card
+                title: Energy This Month
+              - type: custom:apexcharts-card
+                header:
+                  show: false
+                graph_span: 30d
+                span:
+                  end: day
+                series:
+                  - entity: sensor.energy_today_kwh    # REPLACE_ME
+                    name: kWh/day
+                    type: column
+                    color: "#5e9cf8"
+                    fill_raw: "0"
+                apex_config:
+                  chart:
+                    background: transparent
+                    toolbar:
+                      show: false
+                  grid:
+                    borderColor: "rgba(255,255,255,0.06)"
+                  theme:
+                    mode: dark
+
+          # ── Notifications inbox ───────────────────────────
+          - type: custom:stack-in-card
+            cards:
+              - type: custom:mushroom-title-card
+                title: Notifications
+              - type: custom:auto-entities
+                card:
+                  type: vertical-stack
+                card_param: cards
+                filter:
+                  include:
+                    - domain: persistent_notification
+                sort:
+                  method: last_changed
+                  reverse: true
+                show_empty: false
+                empty:
+                  type: custom:mushroom-template-card
+                  primary: No notifications
+                  icon: mdi:bell-check-outline
+                  icon_color: green
+
+
+# ════════════════════════════════════════════════════════════
+#  VIEW 5 — HISTORY & SENSORS
+#  Sparkline graphs for temperature, humidity, power
+# ════════════════════════════════════════════════════════════
+  - title: History
+    path: history
+    icon: mdi:chart-line
+    type: panel
+    cards:
+      - type: custom:layout-card
+        layout_type: custom:masonry-layout
+        layout:
+          width: 320
+          max_cols: 3
+        cards:
+
+          - type: custom:mushroom-title-card
+            title: History
+            subtitle: Last 24 hours
+
+          - type: custom:mini-graph-card
+            name: Indoor Temperature
+            entities:
+              - entity: sensor.thermostat_temperature   # REPLACE_ME
+                name: Living Room
+              - entity: sensor.bedroom_temperature      # REPLACE_ME
+                name: Bedroom
+            hours_to_show: 24
+            points_per_hour: 2
+            line_width: 2
+            smoothing: true
+            show:
+              labels: true
+              points: false
+              legend: true
+              fill: fade
+
+          - type: custom:mini-graph-card
+            name: Indoor Humidity
+            entities:
+              - entity: sensor.thermostat_humidity      # REPLACE_ME
+                name: Living Room
+            hours_to_show: 24
+            points_per_hour: 2
+            line_color: "#64d2ff"
+
+          - type: custom:mini-graph-card
+            name: Power Usage (W)
+            entities:
+              - entity: sensor.home_power_w             # REPLACE_ME
+            hours_to_show: 24
+            points_per_hour: 4
+            line_color: "#ff9f0a"
+            show:
+              fill: true
+
+          - type: custom:mini-graph-card
+            name: Outdoor Temperature
+            entities:
+              - entity: sensor.outdoor_temperature      # REPLACE_ME
+            hours_to_show: 24
+            points_per_hour: 2
+            line_color: "#34c759"
+
+          - type: history-graph
+            title: Motion Activity
+            hours_to_show: 24
+            entities:
+              - entity: binary_sensor.front_door_motion  # REPLACE_ME
+                name: Front Door
+              - entity: binary_sensor.living_room_motion # REPLACE_ME
+                name: Living Room
+              - entity: binary_sensor.bedroom_motion     # REPLACE_ME
+                name: Bedroom
+
+
+# ════════════════════════════════════════════════════════════
+#  VIEW 6 — SETTINGS & ADMIN
+#  Less-used controls, automations toggle, integrations
+# ════════════════════════════════════════════════════════════
+  - title: Settings
+    path: settings
+    icon: mdi:cog-outline
+    type: panel
+    cards:
+      - type: custom:layout-card
+        layout_type: custom:masonry-layout
+        layout:
+          width: 340
+          max_cols: 2
+        cards:
+
+          - type: custom:mushroom-title-card
+            title: Settings
+            subtitle: Automations, integrations & system
+
+          # ── Automation toggles ────────────────────────────
+          - type: custom:stack-in-card
+            cards:
+              - type: custom:mushroom-title-card
+                title: Automations
+              - type: custom:auto-entities
+                card:
+                  type: vertical-stack
+                card_param: cards
+                filter:
+                  include:
+                    - domain: automation
+                sort:
+                  method: name
+                show_empty: false
+
+          # ── System info ───────────────────────────────────
+          - type: custom:stack-in-card
+            cards:
+              - type: custom:mushroom-title-card
+                title: System
+              - type: custom:mushroom-template-card
+                primary: >
+                  HA {{ states('sensor.current_version') }}
+                secondary: >
+                  Uptime: {{ states('sensor.uptime') }}
+                icon: mdi:home-assistant
+                icon_color: blue
+                tap_action:
+                  action: url
+                  url_path: /config/info
+
+              - type: custom:mini-graph-card
+                name: CPU Load
+                entities:
+                  - entity: sensor.processor_use_percent   # REPLACE_ME
+                hours_to_show: 2
+                points_per_hour: 10
+                line_color: "#ff453a"
+                show:
+                  fill: fade
+
+              - type: custom:mini-graph-card
+                name: RAM Usage
+                entities:
+                  - entity: sensor.memory_use_percent      # REPLACE_ME
+                hours_to_show: 2
+                points_per_hour: 10
+                line_color: "#5e9cf8"
+
+          # ── Theme selector ────────────────────────────────
+          - type: custom:mushroom-template-card
+            primary: Theme
+            secondary: Daily Driver Dark
+            icon: mdi:palette-outline
+            icon_color: purple
+            tap_action:
+              action: call-service
+              service: frontend.set_theme
+              service_data:
+                name: "Daily Driver Dark"

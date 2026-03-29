@@ -1,0 +1,104 @@
+# ============================================================
+#  Daily Driver Dark — Custom HA Theme
+#  Minimalist, high-contrast dark palette inspired by Apple
+#  Home & Mushroom Card aesthetics.
+#
+#  Install: Add `frontend: themes: !include_dir_merge_named themes/`
+#           to your configuration.yaml, then reload themes.
+# ============================================================
+
+Daily Driver Dark:
+  # ── Core background layers ────────────────────────────────
+  primary-background-color:     "#0d0d0f"   # near-black canvas
+  secondary-background-color:   "#17171a"   # card surface
+  card-background-color:        "#1c1c20"   # default card bg
+  ha-card-background:           "#1c1c20"
+  ha-card-border-radius:        "18px"
+  ha-card-border-width:         "0px"
+  ha-card-box-shadow:           "0 4px 24px rgba(0,0,0,0.45)"
+
+  # ── Accent & brand ────────────────────────────────────────
+  primary-color:                "#5e9cf8"   # soft blue
+  accent-color:                 "#5e9cf8"
+  state-icon-active-color:      "#5e9cf8"
+  state-icon-color:             "#6b6b7a"
+
+  # ── Typography ────────────────────────────────────────────
+  primary-text-color:           "#e8e8ed"
+  secondary-text-color:         "#8e8e9a"
+  disabled-text-color:          "#4a4a56"
+  text-primary-color:           "#e8e8ed"
+
+  # ── Dividers & borders ────────────────────────────────────
+  divider-color:                "rgba(255,255,255,0.06)"
+  light-divider-color:          "rgba(255,255,255,0.04)"
+
+  # ── Sidebar ───────────────────────────────────────────────
+  sidebar-background-color:     "#101013"
+  sidebar-text-color:           "#c0c0cc"
+  sidebar-icon-color:           "#6b6b7a"
+  sidebar-selected-text-color:  "#e8e8ed"
+  sidebar-selected-icon-color:  "#5e9cf8"
+  sidebar-border-color:         "rgba(255,255,255,0.05)"
+
+  # ── Top app bar ───────────────────────────────────────────
+  app-header-background-color:  "#101013"
+  app-header-text-color:        "#e8e8ed"
+  app-header-edit-background-color: "#1c1c20"
+
+  # ── Chips & pills (Mushroom) ──────────────────────────────
+  mush-chip-background-color:       "rgba(255,255,255,0.07)"
+  mush-chip-border-color:           "transparent"
+  mush-chip-border-radius:          "14px"
+  mush-chip-padding:                "0 10px"
+  mush-chip-font-size:              "12px"
+  mush-chip-font-weight:            "500"
+  mush-chip-icon-color:             "#8e8e9a"
+  mush-chip-text-color:             "#c0c0cc"
+
+  # ── Mushroom cards ────────────────────────────────────────
+  mush-card-primary-font-size:      "14px"
+  mush-card-secondary-font-size:    "12px"
+  mush-card-primary-font-weight:    "600"
+  mush-card-secondary-font-weight:  "400"
+  mush-card-primary-color:          "#e8e8ed"
+  mush-card-secondary-color:        "#8e8e9a"
+
+  # ── State colours ─────────────────────────────────────────
+  success-color:   "#34c759"   # green — active/on
+  warning-color:   "#ff9f0a"   # amber — alert
+  error-color:     "#ff453a"   # red   — critical
+  info-color:      "#5e9cf8"   # blue  — informational
+
+  # ── Light / switch icons ──────────────────────────────────
+  rgb-color:           "94, 156, 248"        # primary-color as RGB tuple
+  rgb-primary-color:   "94, 156, 248"
+
+  # ── Sliders ───────────────────────────────────────────────
+  paper-slider-active-color:     "#5e9cf8"
+  paper-slider-knob-color:       "#ffffff"
+  paper-slider-secondary-color:  "rgba(94,156,248,0.3)"
+
+  # ── Toggle ────────────────────────────────────────────────
+  paper-toggle-button-checked-button-color:      "#ffffff"
+  paper-toggle-button-checked-bar-color:         "#5e9cf8"
+  paper-toggle-button-unchecked-button-color:    "#8e8e9a"
+  paper-toggle-button-unchecked-bar-color:       "rgba(255,255,255,0.15)"
+
+  # ── Dialogs & overlays ────────────────────────────────────
+  paper-dialog-background-color:  "#1c1c20"
+  mdc-dialog-scrim-color:         "rgba(0,0,0,0.72)"
+
+  # ── Energy dashboard override ─────────────────────────────
+  energy-grid-consumption-color:     "#5e9cf8"
+  energy-grid-return-color:          "#34c759"
+  energy-solar-color:                "#ff9f0a"
+  energy-battery-in-color:           "#64d2ff"
+  energy-battery-out-color:          "#5e9cf8"
+  energy-home-color:                 "#e8e8ed"
+
+  # ── Map card ──────────────────────────────────────────────
+  map-filter:  "invert(93%) hue-rotate(180deg) brightness(0.85) contrast(1.1)"
+
+  # ── Scrollbar (webkit) ────────────────────────────────────
+  scrollbar-thumb-color:  "rgba(255,255,255,0.12)"
