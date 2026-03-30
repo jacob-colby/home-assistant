@@ -52,14 +52,36 @@ Install all of the following via **HACS → Frontend**:
 
 ## Setup Instructions
 
-### 1. Enable `ui-lovelace.yaml` mode
+### 1. Configure `ui-lovelace.yaml` dashboard
 
-Add to `configuration.yaml`:
+Add to `configuration.yaml` (replaces the legacy `mode: yaml`):
 ```yaml
 lovelace:
-  mode: yaml
+  resource_mode: yaml   # keeps HACS resources loading from YAML
+  dashboards:
+    lovelace-main:
+      mode: yaml
+      filename: ui-lovelace.yaml
+      title: Home
+      icon: mdi:view-dashboard
+      show_in_sidebar: true
+```
+
+> **Note:** `mode: yaml` at the top level was deprecated in HA 2025.x and will be
+> removed in HA 2026.8. The `dashboards:` approach above is the replacement.
+
+HACS resources go in `configuration.yaml` under `lovelace:` (if using `resource_mode: yaml`):
+```yaml
+lovelace:
+  resource_mode: yaml
+  dashboards:
+    lovelace-main:
+      mode: yaml
+      filename: ui-lovelace.yaml
+      title: Home
+      icon: mdi:view-dashboard
+      show_in_sidebar: true
   resources:
-    # HACS cards — copy exact paths from HACS after install
     - url: /hacsfiles/lovelace-mushroom/mushroom.js
       type: module
     - url: /hacsfiles/bubble-card/bubble-card.js
@@ -82,15 +104,12 @@ lovelace:
       type: module
 ```
 
-### 2. Enable packages
+### 2. Enable theme
 
 Add to `configuration.yaml`:
 ```yaml
-homeassistant:
-  packages: !include_dir_named packages/
-
 frontend:
-  themes: !include_dir_merge_named themes/
+  themes: !include themes/daily_driver_dark.yaml
 ```
 
 ### 3. Create a notify group (for couple notifications)
